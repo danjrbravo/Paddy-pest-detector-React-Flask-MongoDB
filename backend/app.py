@@ -133,9 +133,9 @@ def static_files(filename):
 # ============================
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
-    filename     = f"{uuid.uuid4()}.jpg"
-    upload_path  = os.path.join(UPLOAD_FOLDER, filename)
-    result_path  = os.path.join(RESULT_FOLDER, filename)
+    filename      = f"{uuid.uuid4()}.jpg"
+    upload_path   = os.path.join(UPLOAD_FOLDER, filename)
+    result_path   = os.path.join(RESULT_FOLDER, filename)
     analysis_name = ""
 
     if "image" in request.files:
@@ -149,10 +149,22 @@ def analyze():
     else:
         return jsonify({"error": "No se envió imagen"}), 400
 
-    model = get_model()
-    yolo_res = model(upload_path)
-    out_img, counts, detections = draw_boxes(upload_path, yolo_res)
+    # ── Redimensionar a 416×416 antes de inferencia ──────────────────────
+    img_raw = cv2.imread(upload_path)
+    if img_raw is None:
+        return jsonify({"error": "No se pudo leer la imagen"}), 400
+    img_resized  = cv2.resize(img_raw, (416, 416), interpolation=cv2.INTER_LINEAR)
+    resized_path = upload_path.replace(".jpg", "_416.jpg")
+    cv2.imwrite(resized_path, img_resized)
+    # ─────────────────────────────────────────────────────────────────────
+
+    model    = get_model()
+    yolo_res = model(resized_path)
+    out_img, counts, detections = draw_boxes(resized_path, yolo_res)
     cv2.imwrite(result_path, out_img)
+
+    # Limpia el temporal 416
+    os.remove(resized_path)
 
     doc = {
         "name":          analysis_name or f"Análisis {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}",

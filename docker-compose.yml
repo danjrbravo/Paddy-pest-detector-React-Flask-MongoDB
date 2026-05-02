@@ -1,0 +1,71 @@
+services:
+
+  # ── MongoDB ───────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: pest_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - pest_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Backend Flask ─────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pest_backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/pest_detector
+      - MODEL_PATH=/app/best.pt
+    volumes:
+      - ./backend/best.pt:/app/best.pt:ro
+      - uploads_data:/app/static/uploads
+      - results_data:/app/static/results
+    networks:
+      - pest_net
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  # ── Frontend React (Nginx) ────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: http://localhost:5000
+    container_name: pest_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - pest_net
+    depends_on:
+      - backend
+
+# ── Volúmenes ──────────────────────────────────────────────────
+volumes:
+  mongo_data:
+    driver: local
+  uploads_data:
+    driver: local
+  results_data:
+    driver: local
+
+# ── Red interna ────────────────────────────────────────────────
+networks:
+  pest_net:
+    driver: bridge

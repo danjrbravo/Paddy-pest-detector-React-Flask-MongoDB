@@ -52,11 +52,10 @@ function IconArrow() {
 
 // ── CLASS COLORS ──────────────────────────────────────────────────
 const PRESET = {
-  "Brown Planthopper": "#8B4513", // café
-  "Water weevil": "#3b82f6",      // azul
-
-  "Army worm": "#ef4444",         // rojo (ejemplo)
-  "Leaf hopper": "#22c55e",       // verde (ejemplo)
+  "Brown Planthopper": "#8B4513",
+  "Water weevil": "#3b82f6",
+  "Army worm": "#ef4444",
+  "Leaf hopper": "#22c55e",
 };
 function classColor(name, i = 0) {
   if (PRESET[name]) return PRESET[name];
@@ -164,6 +163,18 @@ export default function HistoryPage() {
 
   useEffect(() => { fetchHistory(1); }, [fetchHistory]);
 
+  // ✅ Movido dentro del componente para acceder a addToast y fetchHistory
+  const handleDeleteAll = async () => {
+    if (!window.confirm("¿Seguro que quieres borrar TODO el historial?")) return;
+    try {
+      await axios.delete("/api/history");
+      addToast("Historial eliminado", "success");
+      await fetchHistory(1);
+    } catch {
+      addToast("Error al borrar historial", "error");
+    }
+  };
+
   const handleDelete = async (id, name) => {
     if (!window.confirm(`¿Eliminar "${name}"?`)) return;
     try {
@@ -187,6 +198,10 @@ export default function HistoryPage() {
               {total} análisis guardado{total !== 1 ? "s" : ""}
             </p>
           </div>
+          <button className="btn btn-danger" onClick={handleDeleteAll}>
+            <IconTrash /> Borrar Historial
+          </button>
+
           <button className="btn btn-primary" onClick={() => navigate("/")}>
             Nuevo análisis <IconArrow />
           </button>
@@ -223,7 +238,6 @@ export default function HistoryPage() {
               ))}
             </div>
 
-            {/* PAGINATION */}
             {pages > 1 && (
               <div className="pagination">
                 <button onClick={() => fetchHistory(page - 1)} disabled={page === 1}>

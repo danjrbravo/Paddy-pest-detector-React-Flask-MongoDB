@@ -216,6 +216,17 @@ def delete_analysis(aid):
     return jsonify({"message": "Eliminado"})
 
 # ============================
+# DELETE /api/history (borrar todo)
+# ============================
+@app.route("/api/history", methods=["DELETE"])
+def delete_all_history():
+    try:
+        mongo.db.analyses.delete_many({})
+        return jsonify({"message": "Historial eliminado"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ============================
 # GET /api/stats
 # ============================
 @app.route("/api/stats", methods=["GET"])

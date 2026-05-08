@@ -1,6 +1,7 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from flask_pymongo import PyMongo
+import gridfs
 import os
 import uuid
 import base64
@@ -22,6 +23,10 @@ app.config["MONGO_URI"] = os.environ.get(
 )
 mongo = PyMongo(app)
 
+def get_fs():
+    """GridFS instance (lazy, per-request safe)."""
+    return gridfs.GridFS(mongo.db)
+
 # ============================
 # MODELO YOLO (lazy load)
 # ============================
@@ -38,10 +43,10 @@ def get_model():
 # COLORES BGR (generación dinámica por clase)
 # ============================
 PREDEFINED_COLORS = {
-    "Brown Planthopper": (19, 69, 139),   # #8B4513 → BGR
-    "Water weevil":      (246, 130, 59),  # #3b82f6 → BGR
-    "Army worm":         (68, 68, 239),   # #ef4444 → BGR
-    "Leaf hopper":       (94, 197, 34),   # #22c55e → BGR
+    "Brown Planthopper": (19, 69, 139),
+    "Water weevil":      (246, 130, 59),
+    "Army worm":         (68, 68, 239),
+    "Leaf hopper":       (94, 197, 34),
 }
 
 def get_color(class_name, cls_index):
@@ -53,21 +58,25 @@ def get_color(class_name, cls_index):
     return (int(bgr[0]), int(bgr[1]), int(bgr[2]))
 
 # ============================
-# CARPETAS ESTÁTICAS
+# HELPERS: conversión imagen ↔ bytes (sin disco)
 # ============================
-UPLOAD_FOLDER = "static/uploads"
-RESULT_FOLDER = "static/results"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(RESULT_FOLDER, exist_ok=True)
-
-# ============================
-# HELPER: dibujar bounding boxes
-# ============================
-def draw_boxes(img_path, yolo_results):
-    img = cv2.imread(img_path)
+def bytes_to_img(data: bytes) -> np.ndarray:
+    arr = np.frombuffer(data, dtype=np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if img is None:
-        raise ValueError("No se pudo leer la imagen")
+        raise ValueError("No se pudo decodificar la imagen")
+    return img
 
+def img_to_bytes(img: np.ndarray, ext: str = ".jpg") -> bytes:
+    ok, buf = cv2.imencode(ext, img)
+    if not ok:
+        raise ValueError("No se pudo codificar la imagen")
+    return buf.tobytes()
+
+# ============================
+# HELPER: dibujar bounding boxes (trabaja sobre np.ndarray)
+# ============================
+def draw_boxes(img: np.ndarray, yolo_results):
     h_img, w_img, _ = img.shape
     scale  = w_img / 1000
     fscale = max(0.5, 1.2 * scale)
@@ -119,65 +128,96 @@ def draw_boxes(img_path, yolo_results):
 
 def serialize(doc):
     doc["_id"] = str(doc["_id"])
+    for key in ("upload_file_id", "result_file_id"):
+        if key in doc:
+            doc[key] = str(doc[key])
     return doc
 
 # ============================
-# RUTAS ESTÁTICAS
+# GET /api/images/<file_id>  ← sirve imágenes desde GridFS
 # ============================
-@app.route("/static/<path:filename>")
-def static_files(filename):
-    return send_from_directory("static", filename)
+@app.route("/api/images/<file_id>")
+def serve_image(file_id):
+    try:
+        fs   = get_fs()
+        grid = fs.get(ObjectId(file_id))
+        return Response(grid.read(), mimetype="image/jpeg")
+    except gridfs.errors.NoFile:
+        return jsonify({"error": "Imagen no encontrada"}), 404
+    except Exception:
+        return jsonify({"error": "ID inválido"}), 400
 
 # ============================
 # POST /api/analyze
 # ============================
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
-    filename      = f"{uuid.uuid4()}.jpg"
-    upload_path   = os.path.join(UPLOAD_FOLDER, filename)
-    result_path   = os.path.join(RESULT_FOLDER, filename)
     analysis_name = ""
 
+    # ── Leer imagen como bytes ───────────────────────────────────────────
     if "image" in request.files:
-        request.files["image"].save(upload_path)
+        raw_bytes     = request.files["image"].read()
         analysis_name = request.form.get("name", "")
     elif request.is_json and "image_b64" in request.json:
         _, encoded = request.json["image_b64"].split(",", 1)
-        with open(upload_path, "wb") as f:
-            f.write(base64.b64decode(encoded))
+        raw_bytes     = base64.b64decode(encoded)
         analysis_name = request.json.get("name", "")
     else:
         return jsonify({"error": "No se envió imagen"}), 400
 
-    # ── Redimensionar a 416×416 antes de inferencia ──────────────────────
-    img_raw = cv2.imread(upload_path)
-    if img_raw is None:
-        return jsonify({"error": "No se pudo leer la imagen"}), 400
-    img_resized  = cv2.resize(img_raw, (416, 416), interpolation=cv2.INTER_LINEAR)
-    resized_path = upload_path.replace(".jpg", "_416.jpg")
-    cv2.imwrite(resized_path, img_resized)
-    # ─────────────────────────────────────────────────────────────────────
+    # ── Decodificar y redimensionar a 416×416 ────────────────────────────
+    try:
+        img_raw = bytes_to_img(raw_bytes)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
+    img_resized = cv2.resize(img_raw, (416, 416), interpolation=cv2.INTER_LINEAR)
+
+    # ── Inferencia YOLO directamente sobre np.ndarray (sin disco) ────────
     model    = get_model()
-    yolo_res = model(resized_path)
-    out_img, counts, detections = draw_boxes(resized_path, yolo_res)
-    cv2.imwrite(result_path, out_img)
+    yolo_res = model(img_resized)
 
-    # Limpia el temporal 416
-    os.remove(resized_path)
+    out_img, counts, detections = draw_boxes(img_resized, yolo_res)
 
+    # ── Codificar ambas imágenes a bytes ─────────────────────────────────
+    try:
+        upload_bytes = img_to_bytes(img_resized)
+        result_bytes = img_to_bytes(out_img)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 500
+
+    # ── Guardar en GridFS ─────────────────────────────────────────────────
+    fs       = get_fs()
+    filename = f"{uuid.uuid4()}.jpg"
+
+    upload_id = fs.put(
+        upload_bytes,
+        filename=f"upload_{filename}",
+        content_type="image/jpeg"
+    )
+    result_id = fs.put(
+        result_bytes,
+        filename=f"result_{filename}",
+        content_type="image/jpeg"
+    )
+
+    # ── Persistir metadatos en MongoDB ────────────────────────────────────
     doc = {
-        "name":          analysis_name or f"Análisis {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}",
-        "filename":      filename,
-        "upload_url":    f"/static/uploads/{filename}",
-        "result_url":    f"/static/results/{filename}",
-        "counts":        counts,
-        "detections":    detections,
-        "total_objects": sum(counts.values()),
-        "created_at":    datetime.utcnow().isoformat()
+        "name":           analysis_name or f"Análisis {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}",
+        "filename":       filename,
+        "upload_file_id": upload_id,
+        "result_file_id": result_id,
+        "upload_url":     f"/api/images/{upload_id}",
+        "result_url":     f"/api/images/{result_id}",
+        "counts":         counts,
+        "detections":     detections,
+        "total_objects":  sum(counts.values()),
+        "created_at":     datetime.utcnow().isoformat()
     }
     res = mongo.db.analyses.insert_one(doc)
     doc["_id"] = str(res.inserted_id)
+    doc["upload_file_id"] = str(upload_id)
+    doc["result_file_id"] = str(result_id)
 
     return jsonify(doc), 200
 
@@ -222,9 +262,23 @@ def get_analysis(aid):
 @app.route("/api/history/<aid>", methods=["DELETE"])
 def delete_analysis(aid):
     try:
-        mongo.db.analyses.delete_one({"_id": ObjectId(aid)})
+        doc = mongo.db.analyses.find_one({"_id": ObjectId(aid)})
     except Exception:
         return jsonify({"error": "ID inválido"}), 400
+    if not doc:
+        return jsonify({"error": "No encontrado"}), 404
+
+    # ── Borrar archivos de GridFS ─────────────────────────────────────────
+    fs = get_fs()
+    for key in ("upload_file_id", "result_file_id"):
+        fid = doc.get(key)
+        if fid:
+            try:
+                fs.delete(ObjectId(fid) if not isinstance(fid, ObjectId) else fid)
+            except Exception:
+                pass
+
+    mongo.db.analyses.delete_one({"_id": ObjectId(aid)})
     return jsonify({"message": "Eliminado"})
 
 # ============================
@@ -233,6 +287,18 @@ def delete_analysis(aid):
 @app.route("/api/history", methods=["DELETE"])
 def delete_all_history():
     try:
+        fs   = get_fs()
+        docs = list(mongo.db.analyses.find({}, {"upload_file_id": 1, "result_file_id": 1}))
+
+        for doc in docs:
+            for key in ("upload_file_id", "result_file_id"):
+                fid = doc.get(key)
+                if fid:
+                    try:
+                        fs.delete(ObjectId(fid) if not isinstance(fid, ObjectId) else fid)
+                    except Exception:
+                        pass
+
         mongo.db.analyses.delete_many({})
         return jsonify({"message": "Historial eliminado"}), 200
     except Exception as e:

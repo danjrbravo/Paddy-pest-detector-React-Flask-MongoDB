@@ -2,11 +2,11 @@ services:
 
   # ── MongoDB ───────────────────────────────────────────────────
   mongodb:
-    image: mongo:7
+    image: mongo:latest
     container_name: pest_mongo
     restart: unless-stopped
     ports:
-      - "27018:27017"
+      - "27019:27017"
     volumes:
       - mongo_data:/data/db
     networks:
@@ -46,7 +46,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        REACT_APP_API_URL: http://localhost:5000
+        VITE_API_URL: /api
     container_name: pest_frontend
     restart: unless-stopped
     ports:

@@ -3,29 +3,21 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copiar package files primero (mejor caché)
 COPY package*.json ./
-
-# Instalar dependencias
 RUN npm install
-
-# Copiar el resto del proyecto
 COPY . .
 
-# Variable de entorno para Vite
-ARG VITE_API_URL=http://localhost:5001
+ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 
-# Build de producción
 RUN npm run build
 
 # ── Stage 2: Nginx ─────────────────────────────────────────────
 FROM nginx:1.25-alpine
 
-# Copiar build generado por Vite
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Configuración nginx
+# Configuración nginx CON PROXY para API (CORREGIDA)
 RUN printf 'server {\n\
     listen 80;\n\
     server_name localhost;\n\
@@ -33,7 +25,24 @@ RUN printf 'server {\n\
     root /usr/share/nginx/html;\n\
     index index.html;\n\
 \n\
-    # React Router / SPA\n\
+    # Proxy para API - Manejar TODOS los métodos HTTP\n\
+    location /api/ {\n\
+        proxy_pass http://backend:5000/api/;\n\
+        proxy_http_version 1.1;\n\
+        proxy_set_header Upgrade $http_upgrade;\n\
+        proxy_set_header Connection "upgrade";\n\
+        proxy_set_header Host $host;\n\
+        proxy_set_header X-Real-IP $remote_addr;\n\
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n\
+        proxy_set_header X-Forwarded-Proto $scheme;\n\
+        proxy_read_timeout 300s;\n\
+        proxy_connect_timeout 75s;\n\
+        \n\
+        # IMPORTANTE: No limitar los métodos HTTP\n\
+        # proxy_method POST;  ← ELIMINA esta línea si está\n\
+    }\n\
+\n\
+    # React Router / SPA - Manejar rutas de React\n\
     location / {\n\
         try_files $uri $uri/ /index.html;\n\
     }\n\

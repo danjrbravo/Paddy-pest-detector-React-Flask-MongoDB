@@ -50,6 +50,16 @@ function IconArrow() {
   );
 }
 
+function IconChart() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12v3a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4v-3"/>
+      <path d="M12 2v8"/>
+      <path d="m8 6 4-4 4 4"/>
+    </svg>
+  );
+}
+
 // ── CLASS COLORS ──────────────────────────────────────────────────
 const PRESET = {
   "Brown Planthopper": "#8B4513",
@@ -60,6 +70,96 @@ const PRESET = {
 function classColor(name, i = 0) {
   if (PRESET[name]) return PRESET[name];
   return `hsl(${(i * 47) % 360}, 70%, 55%)`;
+}
+
+// ── STATISTICS COMPONENT ──────────────────────────────────────────
+function StatisticsFooter() {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const addToast = useToast();
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const res = await axios.get("/api/stats");
+      setStats(res.data);
+    } catch (error) {
+      addToast("Error al cargar estadísticas", "error");
+      console.error("Error fetching stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="stats-footer loading">
+        <div className="spinner" style={{ width: 24, height: 24 }} />
+        <span>Cargando estadísticas...</span>
+      </div>
+    );
+  }
+
+  if (!stats || stats.total_analyses === 0) {
+    return (
+      <div className="stats-footer empty">
+        <IconChart />
+        <span>Sin datos estadísticos disponibles</span>
+      </div>
+    );
+  }
+
+  const totalDetections = stats.class_distribution.reduce((sum, item) => sum + item.count, 0);
+
+  return (
+    <div className="stats-footer">
+      <div className="stats-header">
+        <IconChart />
+        <h3>Estadísticas Globales</h3>
+      </div>
+      
+      <div className="stats-summary">
+        <div className="stat-item">
+          <div className="stat-label">Total Análisis</div>
+          <div className="stat-value">{stats.total_analyses}</div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-label">Total Detecciones</div>
+          <div className="stat-value">{totalDetections}</div>
+        </div>
+      </div>
+
+      <div className="stats-distribution">
+        <div className="stats-subtitle">Distribución por Plaga</div>
+        <div className="distribution-bars">
+          {stats.class_distribution.map((item, index) => (
+            <div key={item.class} className="distribution-item">
+              <div className="distribution-label">
+                <span 
+                  className="distribution-color" 
+                  style={{ backgroundColor: classColor(item.class, index) }}
+                />
+                <span className="distribution-name">{item.class}</span>
+                <span className="distribution-count">{item.count}</span>
+              </div>
+              <div className="distribution-bar-container">
+                <div 
+                  className="distribution-bar"
+                  style={{
+                    width: `${(item.count / totalDetections) * 100}%`,
+                    backgroundColor: classColor(item.class, index)
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── HISTORY CARD ──────────────────────────────────────────────────
@@ -163,7 +263,6 @@ export default function HistoryPage() {
 
   useEffect(() => { fetchHistory(1); }, [fetchHistory]);
 
-  // ✅ Movido dentro del componente para acceder a addToast y fetchHistory
   const handleDeleteAll = async () => {
     if (!window.confirm("¿Seguro que quieres borrar TODO el historial?")) return;
     try {
@@ -259,6 +358,11 @@ export default function HistoryPage() {
             )}
           </>
         )}
+      </div>
+
+      {/* Footer de Estadísticas */}
+      <div className="page-footer">
+        <StatisticsFooter />
       </div>
     </>
   );

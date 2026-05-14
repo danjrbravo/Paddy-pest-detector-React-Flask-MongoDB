@@ -87,6 +87,7 @@ export default function ResultPage() {
   const [loading, setLoading]   = useState(true);
   const [view, setView]         = useState("result"); // "result" | "original"
   const [deleting, setDeleting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     axios.get(`/api/history/${id}`)
@@ -108,12 +109,25 @@ export default function ResultPage() {
     }
   };
 
-  const downloadResult = () => {
-    const a = document.createElement("a");
-    a.href     = `${API}${data.result_url}`;
-    a.download = `resultado_${id}.jpg`;
-    a.target   = "_blank";
-    a.click();
+  const downloadResult = async () => {
+    setDownloading(true);
+    try {
+      const response = await fetch(`${API}${data.result_url}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `resultado_${id}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      addToast("Imagen descargada", "success");
+    } catch {
+      addToast("Error al descargar la imagen", "error");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   if (loading) {
@@ -163,11 +177,11 @@ export default function ResultPage() {
           </div>
 
           <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn btn-primary" onClick={() => navigate("/")}>
+            <button className="btn btn-primary" onClick={() => navigate("/")}>
               Analizar nueva imagen
             </button>
-            <button className="btn btn-ghost" onClick={downloadResult}>
-              <IconDownload /> Descargar
+            <button className="btn btn-ghost" onClick={downloadResult} disabled={downloading}>
+              <IconDownload /> {downloading ? "Descargando…" : "Descargar"}
             </button>
             <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
               <IconTrash /> {deleting ? "Eliminando…" : "Eliminar"}

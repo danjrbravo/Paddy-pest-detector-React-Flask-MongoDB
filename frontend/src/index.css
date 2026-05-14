@@ -20,6 +20,7 @@
   --font-mono: 'DM Mono', monospace;
   --shadow:    0 4px 24px rgba(0,0,0,0.5);
   --shadow-lg: 0 8px 48px rgba(0,0,0,0.7);
+  --sidebar-w: 240px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -51,7 +52,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ── SIDEBAR ── */
 .sidebar {
-  width: 240px;
+  width: var(--sidebar-w);
   flex-shrink: 0;
   background: var(--bg2);
   border-right: 1px solid var(--border);
@@ -142,7 +143,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ── MAIN CONTENT ── */
 .main-content {
-  margin-left: 240px;
+  margin-left: var(--sidebar-w);
   flex: 1;
   min-height: 100vh;
   display: flex;
@@ -194,6 +195,8 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .card-title {
@@ -477,6 +480,7 @@ a { color: inherit; text-decoration: none; }
   gap: 8px;
   justify-content: center;
   margin-top: 32px;
+  flex-wrap: wrap;
 }
 
 .pagination button {
@@ -607,16 +611,6 @@ a { color: inherit; text-decoration: none; }
 .empty-state svg { width: 48px; height: 48px; opacity: 0.3; }
 .empty-state p { font-size: 0.9rem; }
 
-/* ── RESPONSIVE ── */
-@media (max-width: 768px) {
-  .sidebar { transform: translateX(-100%); }
-  .sidebar.open { transform: translateX(0); }
-  .main-content { margin-left: 0; }
-  .page-header, .page-body { padding-left: 20px; padding-right: 20px; }
-  .result-split { grid-template-columns: 1fr; }
-  .stat-row { grid-template-columns: 1fr 1fr; }
-  .history-grid { grid-template-columns: 1fr; }
-}
 /* ── STATISTICS FOOTER ── */
 .page-footer {
   margin-top: auto;
@@ -741,6 +735,7 @@ a { color: inherit; text-decoration: none; }
   width: 12px;
   height: 12px;
   border-radius: 3px;
+  flex-shrink: 0;
 }
 
 .distribution-name {
@@ -769,31 +764,269 @@ a { color: inherit; text-decoration: none; }
   transition: width 0.3s ease;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .page-footer {
-    padding: 24px 20px;
+/* ── MOBILE TOPBAR (solo visible en móvil) ── */
+.mobile-topbar {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 56px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  z-index: 110;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+
+.mobile-topbar .logo-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobile-menu-btn {
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text2);
+}
+.mobile-menu-btn svg { width: 20px; height: 20px; }
+
+/* Overlay para cerrar el sidebar en móvil */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 99;
+}
+.sidebar-overlay.visible { display: block; }
+
+/* ── RESPONSIVE — Tablet (≤ 1024px) ── */
+@media (max-width: 1024px) {
+  /* AnalyzePage: colapsa el grid de 2 columnas */
+  .page-body > div[style*="grid-template-columns: 1fr 360px"] {
+    display: flex !important;
+    flex-direction: column !important;
   }
-  
-  .stats-footer {
-    padding: 20px;
+
+  /* ResultPage header: apila acciones */
+  .page-header > div > div:last-child {
+    flex-wrap: wrap;
   }
-  
-  .stats-summary {
+
+  .stat-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .result-split {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ── RESPONSIVE — Móvil (≤ 768px) ── */
+@media (max-width: 768px) {
+  /* Sidebar oculto por defecto, desliza desde la izquierda */
+  .sidebar {
+    transform: translateX(-100%);
+    z-index: 120;
+    width: 260px;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Topbar móvil visible */
+  .mobile-topbar {
+    display: flex;
+  }
+
+  /* Empuja el contenido hacia abajo para el topbar */
+  .main-content {
+    margin-left: 0;
+    padding-top: 56px;
+  }
+
+  /* Headers y body con menos padding */
+  .page-header {
+    padding: 24px 16px 0;
+  }
+
+  .page-body {
+    padding: 20px 16px 48px;
+  }
+
+  /* Título más pequeño */
+  .page-title {
+    font-size: 1.5rem;
+  }
+
+  /* ResultPage: header con acciones apiladas */
+  .page-header > div > div:first-child h1 {
+    font-size: 1.3rem;
+  }
+
+  .page-header > div > div:last-child {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  /* Stat row: 2 columnas en móvil */
+  .stat-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    padding: 14px 16px;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+  }
+
+  /* Result split: una columna */
+  .result-split {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  /* History: una columna */
+  .history-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  /* HistoryPage header */
+  .page-header > div > div.page-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* Drop zone compacta */
+  .drop-zone {
+    padding: 36px 20px;
+  }
+
+  /* Card body más ajustado */
+  .card-body {
+    padding: 16px;
+  }
+
+  .card-header {
+    padding: 14px 16px;
+  }
+
+  /* Tabs más pequeñas */
+  .tab {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+
+  /* Toast ocupa casi todo el ancho */
+  .toast-container {
+    bottom: 16px;
+    right: 12px;
+    left: 12px;
+  }
+
+  .toast {
+    max-width: 100%;
+  }
+
+  /* Footer estadísticas */
+  .page-footer {
+    padding: 24px 16px;
+  }
+
+  .stats-footer {
+    padding: 20px 16px;
+  }
+
+  .stats-summary {
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
     max-width: 100%;
   }
-  
+
   .stat-item {
-    padding: 16px;
+    padding: 14px 12px;
   }
-  
+
   .stat-item .stat-value {
     font-size: 1.5rem;
   }
-  
+
   .stats-header h3 {
     font-size: 1rem;
+  }
+
+  /* Buttons en el header de ResultPage */
+  .btn {
+    padding: 9px 14px;
+    font-size: 0.82rem;
+  }
+
+  /* AnalyzePage: el grid lateral pasa a columna */
+  .page-body > div[style*="1fr 360px"] {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+}
+
+/* ── RESPONSIVE — Móvil pequeño (≤ 480px) ── */
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 1.3rem;
+  }
+
+  .stat-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .stat-value {
+    font-size: 1.3rem;
+  }
+
+  /* Oculta texto de botones con solo icono cuando hay muchos */
+  .btn-icon-only span {
+    display: none;
+  }
+
+  .drop-zone {
+    padding: 28px 16px;
+  }
+
+  .empty-state {
+    padding: 48px 16px;
+  }
+
+  .stats-summary {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+/* En el media query de ≤768px, agrega: */
+@media (max-width: 768px) {
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .card-header .tab-group {
+    width: 100%;
+  }
+
+  .card-header .tab-group .tab {
+    flex: 1;
+    text-align: center;
   }
 }

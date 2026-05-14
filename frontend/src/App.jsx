@@ -24,9 +24,7 @@ function ToastProvider({ children }) {
       <div className="toast-container">
         {toasts.map(t => (
           <div key={t.id} className={`toast ${t.type}`}>
-            {t.type === "success"
-              ? <IconCheck />
-              : <IconX />}
+            {t.type === "success" ? <IconCheck /> : <IconX />}
             <span>{t.msg}</span>
           </div>
         ))}
@@ -87,52 +85,80 @@ function IconX() {
   );
 }
 
+function IconMenu() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <line x1="3" y1="12" x2="21" y2="12"/>
+      <line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  );
+}
+
 // ── SIDEBAR ──────────────────────────────────────────────────────
-function Sidebar() {
+function Sidebar({ open, onClose }) {
   const links = [
     { to: "/",        label: "Analizar",  Icon: IconScan    },
     { to: "/history", label: "Historial", Icon: IconHistory },
   ];
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-logo">
-        <div className="logo-mark">
-          <div className="logo-icon">
-            <IconBug />
+    <>
+      <div className={`sidebar-overlay${open ? " visible" : ""}`} onClick={onClose} />
+      <aside className={`sidebar${open ? " open" : ""}`}>
+        <div className="sidebar-logo">
+          <div className="logo-mark">
+            <div className="logo-icon">
+              <IconBug />
+            </div>
+            <span className="logo-text">Plaga<span>Vision</span></span>
           </div>
-          <span className="logo-text">Plaga<span>Vision</span></span>
         </div>
-      </div>
 
-      <nav className="sidebar-nav">
-        {links.map(({ to, label, Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === "/"}
-            className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
-          >
-            <Icon />
-            {label}
-          </NavLink>
-        ))}
-      </nav>
+        <nav className="sidebar-nav">
+          {links.map(({ to, label, Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === "/"}
+              className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
+              onClick={onClose}
+            >
+              <Icon />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
 
-      <div className="sidebar-footer">
-        v1.0.0 · YOLO + MongoDB
-      </div>
-    </aside>
+        <div className="sidebar-footer">
+          v1.0.0 · YOLO + MongoDB
+        </div>
+      </aside>
+    </>
   );
 }
 
 // ── ROOT APP ─────────────────────────────────────────────────────
 export default function App() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <BrowserRouter>
       <ToastProvider>
         <div className="app-layout">
-          <Sidebar />
+          {/* Topbar móvil */}
+          <div className="mobile-topbar">
+            <div className="logo-mark">
+              <div className="logo-icon"><IconBug /></div>
+              <span className="logo-text">Plaga<span>Vision</span></span>
+            </div>
+            <button className="mobile-menu-btn" onClick={() => setSidebarOpen(o => !o)}>
+              <IconMenu />
+            </button>
+          </div>
+
+          <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
           <main className="main-content">
             <Routes>
               <Route path="/"            element={<AnalyzePage />} />

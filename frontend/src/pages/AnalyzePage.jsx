@@ -57,9 +57,9 @@ export default function AnalyzePage() {
 
   // tabs: "upload" | "camera"
   const [tab, setTab]           = useState("upload");
-  const [preview, setPreview]   = useState(null);   // data URL para mostrar
-  const [file, setFile]         = useState(null);   // File object (upload)
-  const [capturedB64, setCapturedB64] = useState(null); // base64 (camera)
+  const [preview, setPreview]   = useState(null);
+  const [file, setFile]         = useState(null);
+  const [capturedB64, setCapturedB64] = useState(null);
   const [name, setName]         = useState("");
   const [loading, setLoading]   = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -68,6 +68,20 @@ export default function AnalyzePage() {
   const videoRef   = useRef(null);
   const streamRef  = useRef(null);
   const [cameraOn, setCameraOn] = useState(false);
+
+  // ── VALIDATION ──
+  const validateFile = (f) => {
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(f.type)) {
+      addToast("Formato no soportado. Usa JPG,JPEG PNG o WEBP.", "error");
+      return false;
+    }
+    if (f.size > 20 * 1024 * 1024) {
+      addToast("El archivo excede el tamaño máximo de 20 MB.", "error");
+      return false;
+    }
+    return true;
+  };
 
   // ── DROP ZONE ──
   const handleDrop = useCallback((e) => {
@@ -78,6 +92,7 @@ export default function AnalyzePage() {
   }, []);
 
   const loadFile = (f) => {
+    if (!validateFile(f)) return;
     setFile(f);
     setCapturedB64(null);
     const reader = new FileReader();
@@ -221,13 +236,13 @@ export default function AnalyzePage() {
                 >
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp"
                     style={{ display: "none" }}
                     onChange={(e) => e.target.files[0] && loadFile(e.target.files[0])}
                   />
                   <div className="drop-zone-icon"><IconUpload /></div>
                   <p className="drop-zone-title">Arrastra una imagen o haz clic</p>
-                  <p className="drop-zone-sub">JPG, PNG, WEBP — máx. 20 MB</p>
+                  <p className="drop-zone-sub">JPG,JPEG, PNG, WEBP — máx. 20 MB</p>
                 </label>
               ) : (
                 /* CAMERA */

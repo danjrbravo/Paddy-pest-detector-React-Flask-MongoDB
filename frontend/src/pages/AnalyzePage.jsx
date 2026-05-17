@@ -180,7 +180,7 @@ export default function AnalyzePage() {
     <>
       <div className="page-header">
         <h1 className="page-title">Nuevo Análisis</h1>
-        <p className="page-subtitle">Sube una imagen o usa la cámara para detectar plagas con YOLO</p>
+        <p className="page-subtitle">Sube una imagen o usa la cámara para detectar plagas del arroz (Sogata verde del arroz,gorgojito de agua,chinche marrón y gusano cogollero) con YOLO</p>
       </div>
 
       <div className="page-body">

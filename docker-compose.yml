@@ -1,6 +1,6 @@
 services:
 
-  # ── MongoDB ───────────────────────────────────────────────────
+  # MongoDB 
   mongodb:
     image: mongo:latest
     container_name: pest_mongo
@@ -18,7 +18,7 @@ services:
       retries: 5
       start_period: 30s
 
-  # ── Backend Flask ─────────────────────────────────────────────
+  # Backend Flask 
   backend:
     build:
       context: ./backend
@@ -40,7 +40,7 @@ services:
       mongodb:
         condition: service_healthy
 
-  # ── Frontend React (Nginx) ────────────────────────────────────
+  # Frontend React (Nginx)
   frontend:
     build:
       context: ./frontend
@@ -50,7 +50,7 @@ services:
     container_name: pest_frontend
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "8081:80"
     networks:
       - pest_net
     depends_on:

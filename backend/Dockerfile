@@ -20,17 +20,13 @@ COPY requirements.txt .
 # Instalar dependencias Python (CPU-only PyTorch)
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt \
-    # Limpiar cachés para reducir tamaño
     && rm -rf /root/.cache/ultralytics \
     && rm -rf /root/.cache/pip
 
-# Copiar solo el código (NO best.pt - se monta como volumen)
-COPY app.py .
-# Si hay otros archivos Python necesarios:
-# COPY utils.py .
-# COPY config.py .
+# Copiar todo el código (excepto lo que ignore .dockerignore)
+COPY . .
 
-# Crear directorios necesarios
+# Crear directorios necesarios (por si no existen)
 RUN mkdir -p static/uploads static/results
 
 # Usuario no-root (seguridad)
@@ -39,9 +35,9 @@ USER appuser
 
 EXPOSE 5000
 
-# Healthcheck para la nube
+# Healthcheck más específico
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:5000/api/stats || exit 1
 
-# Gunicorn: 2 workers CPU intensivo
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "--access-logfile", "-", "app:app"]
+# Gunicorn optimizado para producción
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "app:app"]

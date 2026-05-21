@@ -29,9 +29,8 @@ services:
     expose:
       - "5000"
 
-    environment:
-      - MONGO_URI=mongodb://mongodb:27017/pest_detector
-      - MODEL_PATH=/app/best.pt
+    env_file:
+      - ./backend/.env
 
     volumes:
       - ./backend/best.pt:/app/best.pt:ro

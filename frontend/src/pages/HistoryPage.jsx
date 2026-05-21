@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useToast } from "../App";
 
-const API = "http://localhost:5001";
+const API = import.meta.env.VITE_API_URL || "";
 
 // ── ICONS ────────────────────────────────────────────────────────
 function IconTrash() {
